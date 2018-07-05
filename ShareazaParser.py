@@ -45,6 +45,9 @@ def encode_in_addr(addr):
     b = struct.unpack('!BBBB', addr)
     return "%d.%d.%d.%d" % b
 
+def encode_in_addr_v6(addr):
+    s = struct.unpack('4s4s4s4s4s4s4s4s', encode_hex(addr))
+    return "%s:%s:%s:%s:%s:%s:%s:%s" % s
 
 def encode_hex(s):
     return base64.b16encode(s)
@@ -359,6 +362,7 @@ class QueryHit:
         self.protocolid = 0
         self.clientId = ''
         self.address = ''
+        self.addressv6 = ''
         self.port = 0
         self.speed = 0
         self.s_speed = ''
@@ -407,6 +411,7 @@ class QueryHit:
         f.out(3, "Protocol ID: %d" % (self.protocolid, ))
         f.out(1, "Client ID: " + self.clientId)
         f.out(1, "Address: %s:%d" % (self.address, self.port))
+        f.out(1, "AddressV6: [%s]:%d" % (self.addressv6, self.port))
         f.out(2, "Speed: %d (%s)" % (self.speed, self.s_speed))
         f.out(2, "Code: " + self.s_code)
         f.out(3, "Push: " + str(self.push))
@@ -448,6 +453,8 @@ class QueryHit:
             self.protocolid = ar.read_int()
         self.clientId = encode_guid(ar.read_bytes(16))
         self.address = encode_in_addr(ar.read_bytes(4))
+        if version >= 16:
+            self.addressv6 = encode_in_addr_v6(ar.read_bytes(16))
         self.port = ar.read_ushort()
         self.speed = ar.read_uint()
         self.s_speed = ar.read_string()
@@ -602,6 +609,8 @@ class MatchList:
         self.filterBogus = False
         self.filterDRM = False
         self.filterAdult = False
+        self.filterComents = False
+        self.filterPartial = False
         self.filterSuspicious = False
         self.bRegExp = False
         self.filterMinSize = 0
@@ -622,6 +631,8 @@ class MatchList:
             self.filterBogus))))
         f.out(2, "Filter .. DRM: %s, Adult: %s, Suspicious: %s, RegExp: %s" % tuple(
             map(str, (self.filterDRM, self.filterAdult, self.filterSuspicious, self.bRegExp))))
+        f.out(2, "Filter .. Coments: %s, Partial: %s" % tuple(
+            map(str, (self.filterComents, self.filterPartial))))        
         f.out(2, "Filter ..Min Size: %d, MaxSize: %d" % (self.filterMinSize, self.filterMaxSize))
         f.out(3, "FilterSources: %d" % (self.filterSources,))
         f.out(3, "Sort Column: %d" % (self.sortColumn,))
@@ -648,7 +659,11 @@ class MatchList:
             self.filterAdult = ar.read_bool()
             self.filterSuspicious = ar.read_bool()
             self.bRegExp = ar.read_bool()
-
+            
+        if self.version >= 17:
+            self.filterComents = ar.read_bool()
+            self.filterPartial = ar.read_bool()
+            
         if self.version >= 10:
             self.filterMinSize = ar.read_ulong()
             self.filterMaxSize = ar.read_ulong()
