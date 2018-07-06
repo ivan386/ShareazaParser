@@ -47,6 +47,9 @@ def encode_in_addr(addr):
 
 def encode_in_addr_v6(addr):
     s = struct.unpack('4s4s4s4s4s4s4s4s', encode_hex(addr))
+    if type(b"") is str:
+        return "%s:%s:%s:%s:%s:%s:%s:%s" % s
+    s = tuple(map(_reencode, s))
     return "%s:%s:%s:%s:%s:%s:%s:%s" % s
 
 def encode_hex(s):
@@ -73,8 +76,12 @@ encoders = {
 def _reencode(b):
     if type(b) is bool:
         return str(b)
-    if type(b) is types.UnicodeType:
-        return b.encode('utf-8')
+    if type(b"") is str:
+        if type(b) is unicode:
+            return b.encode('utf-8')
+    else:
+        if hasattr(b, "decode"):
+            return b.decode()
     return b
 
 
@@ -184,7 +191,7 @@ class MFCParser:
         return self._read("<Q", 8)
 
     def read_hash(self, n, encoder='hex'):
-        ret = '\0' * n
+        ret = b'\0' * n
         valid = self.read_bool()
         if valid:
             ret = self.read_bytes(n)
@@ -310,11 +317,11 @@ class QuerySearch:
         f.inc_ident()
         f.out(0, "GUID: " + self.guid)
         f.out(0, "Search: " + self.sSearch)
-        f.out(2, "SHA1: " + self.sha1)
-        f.out(2, "Tiger: " + self.tiger)
-        f.out(2, "ED2K: " + self.ed2k)
-        f.out(2, "BTH: " + self.bth)
-        f.out(2, "MD5: " + self.md5)
+        f.out(2, b"SHA1: " + self.sha1)
+        f.out(2, b"Tiger: " + self.tiger)
+        f.out(2, b"ED2K: " + self.ed2k)
+        f.out(2, b"BTH: " + self.bth)
+        f.out(2, b"MD5: " + self.md5)
         f.out(3, "URI: " + self.uri)
         self.xml.print_state(f)
         f.out(3, "Want URL: " + str(self.wantURL))
@@ -421,13 +428,13 @@ class QueryHit:
         f.out(3, "UPSlots: %d  UPQueue: %d" % (self.upslots, self.upqueue))
         f.out(3, "Chat: " + str(self.chat))
         f.out(3, "BrowseHost: " + str(self.browsehost))
-        f.out(2, "SHA1: " + self.sha1)
-        f.out(2, "Tiger: " + self.tiger)
-        f.out(2, "ED2K: " + self.ed2k)
-        f.out(2, "BTH:" + self.bth)
-        f.out(2, "MD5: " + self.md5)
+        f.out(2, b"SHA1: " + self.sha1)
+        f.out(2, b"Tiger: " + self.tiger)
+        f.out(2, b"ED2K: " + self.ed2k)
+        f.out(2, b"BTH:" + self.bth)
+        f.out(2, b"MD5: " + self.md5)
         f.out(1, "URL: " + self.url)
-        f.out(0, "Name: " + self.name.encode('UTF-8'))
+        f.out(0, b"Name: " + self.name.encode('UTF-8'))
         f.out(2, "Index: %d" % (self.index,))
         f.out(3, "bSize: " + str(self.bSize))
         f.out(2, "Size: %d" % (self.size,))
@@ -540,11 +547,11 @@ class MatchFile:
         f.out(0, "MATCH FILE")
         f.inc_ident()
         f.out(1, "Size: %d (%s)" % (self.size, self.s_size))
-        f.out(0, "SHA1: " + self.sha1)
-        f.out(2, "Tiger: " + self.tiger)
-        f.out(1, "ED2K: " + self.ED2K)
-        f.out(2, "BTH: " + self.bth)
-        f.out(2, "MD5: " + self.md5)
+        f.out(0, b"SHA1: " + self.sha1)
+        f.out(2, b"Tiger: " + self.tiger)
+        f.out(1, b"ED2K: " + self.ED2K)
+        f.out(2, b"BTH: " + self.bth)
+        f.out(2, b"MD5: " + self.md5)
         f.out(3, "Busy: " + str(self.busy))
         f.out(3, "Push: " + str(self.push))
         f.out(3, "Stable: " + str(self.stable))
@@ -554,7 +561,7 @@ class MatchFile:
         f.out(3, "Download: " + str(self.download))
         f.out(2, "One Valid: " + str(self.onevalid))
         f.out(3, "Preview Size: %d" % (self.nPreview,))
-        f.out(3, "Preview: " + self.preview.encode('base64'))
+        f.out(3, b"Preview: " + encode_base64(self.preview.encode()))
         f.out(1, "Total Hits: %d" % (self.total,))
         for h in self.hits:
             h.print_state(f)
@@ -761,9 +768,9 @@ class SearchWnd:
         self.baseMatchSearch.serialize(ar)
 
     def print_state(self, f):
-        f.out(0, "SEARCH WINDOW")
+        f.out(0, b"SEARCH WINDOW")
         f.inc_ident()
-        f.out(3, "Version: %d" % (self.version,))
+        f.out(3, ("Version: %d" % (self.version,)).encode())
         for m in self.managedSearches:
             m.print_state(f)
         self.baseMatchSearch.print_state(f)
@@ -781,7 +788,7 @@ class Searches:
             self.searchWindows.append(s)
 
     def print_state(self, f):
-        f.out(0, "SEARCHES")
+        f.out(0, b"SEARCHES")
         f.inc_ident()
         for s in self.searchWindows:
             s.print_state(f)
@@ -1311,7 +1318,10 @@ def main(command, argv):
                 if tostdout:
                     fout = sys.stdout
                 else:
-                    fout = open('Searches.txt', "wt")
+                    if type(b"") is str:
+                        fout = open('Searches.txt', "wt")
+                    else:
+                        fout = open('Searches.txt', "wt", encoding='utf-8')
                 out = FileWriter(fout, level)
                 s.print_state(out)
                 if not tostdout:
@@ -1339,7 +1349,10 @@ def main(command, argv):
                     if tostdout:
                         fout = sys.stdout
                     else:
-                        fout = open('Library%d.txt' % (lib,), "wt")
+                        if type(b"") is str:
+                            fout = open('Library%d.txt' % (lib,), "wt")
+                        else:
+                            fout = open('Library%d.txt' % (lib,), "wt", encoding='utf-8')
                     out = FileWriter(fout, level)
                     l.print_state(out)
                     if not tostdout:
